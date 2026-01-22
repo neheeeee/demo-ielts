@@ -76,60 +76,73 @@ class ScoringService:
 
     def compare_answers(self, user_answer: str, correct_answer: str) -> bool:
         """
-        Compare answers with flexible matching:
-        1. Exact match after normalization
-        2. Check if correct answer is contained in user answer (for longer responses)
-        3. Check if user answer is contained in correct answer
-        4. Word-by-word comparison for multi-word answers
+        Compare answers with strict matching:
+        1. Reject empty user answers immediately
+        2. Exact match after normalization
+        3. Check if correct answer is contained in user answer (for longer responses) - but only if user answer is meaningful
+        4. Word-by-word comparison for multi-word answers - but stricter
         """
+        # CRITICAL FIX: Reject empty or whitespace-only answers immediately
+        if not user_answer or not user_answer.strip():
+            return False
+
+        # CRITICAL FIX: Reject if correct answer is empty (shouldn't happen, but safety check)
+        if not correct_answer or not correct_answer.strip():
+            return False
+
         normalized_user = self.normalize_answer(user_answer)
         normalized_correct = self.normalize_answer(correct_answer)
 
-        # Case 1: Exact match
+        # CRITICAL FIX: After normalization, if user answer is empty, reject
+        if not normalized_user:
+            return False
+
+        # Case 1: Exact match (most reliable)
         if normalized_user == normalized_correct:
             return True
 
         # Case 2: If user wrote a longer sentence, check if correct answer is in it
         # Example: correct="london", user="the city is london" -> True
-        if len(normalized_user) > len(normalized_correct) * 1.5:
-            # User answer is significantly longer, check if correct answer is contained
-            if normalized_correct in normalized_user:
+        # BUT: Only if user answer is at least 2x longer (to avoid false matches)
+        if len(normalized_user) >= len(normalized_correct) * 2:
+            # Check if correct answer appears as a complete word/phrase
+            # Use word boundaries to avoid partial matches
+            # Create pattern that matches the correct answer as a whole word
+            pattern = r"\b" + re.escape(normalized_correct) + r"\b"
+            if re.search(pattern, normalized_user, re.IGNORECASE):
                 return True
-            # Also check word boundaries
+
+            # Also check if all words from correct answer are in user answer
             words_correct = set(normalized_correct.split())
             words_user = set(normalized_user.split())
-            # If all words from correct answer are in user answer
-            if words_correct and words_correct.issubset(words_user):
+            # If all words from correct answer are in user answer AND user has more words
+            if (
+                words_correct
+                and words_correct.issubset(words_user)
+                and len(words_user) > len(words_correct)
+            ):
                 return True
 
-        # Case 3: If correct answer is longer, check if user answer is in it
-        # Example: correct="london city", user="london" -> False (but could be True if needed)
-        # This is less common, but we'll check
-        if len(normalized_correct) > len(normalized_user) * 1.5:
-            if normalized_user in normalized_correct:
-                return True
-
-        # Case 4: Word-by-word comparison for multi-word answers
-        # Split into words and compare
+        # Case 3: Word-by-word comparison for multi-word answers - STRICTER
+        # Only if both have multiple words
         words_user = set(normalized_user.split())
         words_correct = set(normalized_correct.split())
 
-        # If both have multiple words, check if they share significant overlap
         if len(words_user) > 1 and len(words_correct) > 1:
-            # Calculate overlap ratio
+            # Calculate overlap ratio - but require HIGHER threshold (90% instead of 80%)
             intersection = words_user.intersection(words_correct)
             union = words_user.union(words_correct)
             if union:
                 overlap_ratio = len(intersection) / len(union)
-                # If more than 80% overlap, consider it correct
-                if overlap_ratio >= 0.8:
+                # CRITICAL FIX: Require 90% overlap (was 80%) and same number of words
+                if overlap_ratio >= 0.9 and len(words_user) == len(words_correct):
                     return True
 
-        # Case 5: Fuzzy matching for typos (simple Levenshtein-like check)
-        # Only for short answers (1-3 words) to avoid false positives
-        if len(normalized_correct.split()) <= 3 and len(normalized_user.split()) <= 3:
+        # Case 4: Fuzzy matching for typos - STRICTER
+        # Only for very short answers (1-2 words) and require 95% similarity (was 85%)
+        if len(normalized_correct.split()) <= 2 and len(normalized_user.split()) <= 2:
             # Simple character-based similarity
-            if self._simple_similarity(normalized_user, normalized_correct) >= 0.85:
+            if self._simple_similarity(normalized_user, normalized_correct) >= 0.95:
                 return True
 
         return False
@@ -192,12 +205,45 @@ class ScoringService:
 
         raw_score = correct_count
 
-        # Check if user provided any answers
+        # Check if user provided any answers (non-empty)
         has_any_answer = any(
             answers.get(f"listening_s{section.get('id')}_q{q.get('id')}", "").strip()
             for section in sections
             for q in section.get("questions", [])
         )
+
+        # CRITICAL FIX: Also check if raw_score matches total_questions (perfect score)
+        # If user got perfect score but we know they left blanks, something is wrong
+        # Double-check: if raw_score = total_questions, verify all answers are non-empty
+        if raw_score == total_questions and total_questions > 0:
+            # Verify all answers are actually provided and non-empty
+            all_answers_provided = all(
+                bool(
+                    answers.get(
+                        f"listening_s{section.get('id')}_q{q.get('id')}", ""
+                    ).strip()
+                )
+                for section in sections
+                for q in section.get("questions", [])
+            )
+            # If not all answers provided but got perfect score, something is wrong
+            if not all_answers_provided:
+                print(
+                    f"WARNING: Perfect score but missing answers! raw_score={raw_score}, total={total_questions}"
+                )
+                # Recalculate - this shouldn't happen with fixed compare_answers, but safety check
+                raw_score = 0
+                for section in sections:
+                    for question in section.get("questions", []):
+                        qid = question.get("id")
+                        user_answer = answers.get(
+                            f"listening_s{section.get('id')}_q{qid}", ""
+                        )
+                        if not user_answer or not user_answer.strip():
+                            continue  # Skip empty answers
+                        correct_answer = str(question.get("correct_answer", ""))
+                        if self.compare_answers(user_answer, correct_answer):
+                            raw_score += 1
 
         # Logic:
         # - No answers → 0.0
@@ -254,12 +300,45 @@ class ScoringService:
 
         raw_score = correct_count
 
-        # Check if user provided any answers
+        # Check if user provided any answers (non-empty)
         has_any_answer = any(
             answers.get(f"reading_p{passage.get('id')}_q{q.get('id')}", "").strip()
             for passage in passages
             for q in passage.get("questions", [])
         )
+
+        # CRITICAL FIX: Also check if raw_score matches total_questions (perfect score)
+        # If user got perfect score but we know they left blanks, something is wrong
+        # Double-check: if raw_score = total_questions, verify all answers are non-empty
+        if raw_score == total_questions and total_questions > 0:
+            # Verify all answers are actually provided and non-empty
+            all_answers_provided = all(
+                bool(
+                    answers.get(
+                        f"reading_p{passage.get('id')}_q{q.get('id')}", ""
+                    ).strip()
+                )
+                for passage in passages
+                for q in passage.get("questions", [])
+            )
+            # If not all answers provided but got perfect score, something is wrong
+            if not all_answers_provided:
+                print(
+                    f"WARNING: Perfect score but missing answers! raw_score={raw_score}, total={total_questions}"
+                )
+                # Recalculate - this shouldn't happen with fixed compare_answers, but safety check
+                raw_score = 0
+                for passage in passages:
+                    for question in passage.get("questions", []):
+                        qid = question.get("id")
+                        user_answer = answers.get(
+                            f"reading_p{passage.get('id')}_q{qid}", ""
+                        )
+                        if not user_answer or not user_answer.strip():
+                            continue  # Skip empty answers
+                        correct_answer = str(question.get("correct_answer", ""))
+                        if self.compare_answers(user_answer, correct_answer):
+                            raw_score += 1
 
         # Logic:
         # - No answers → 0.0
