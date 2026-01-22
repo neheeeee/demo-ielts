@@ -279,48 +279,127 @@ class ScoringService:
 
             for question in questions:
                 qid = question.get("id")
-                total_questions += 1
-                user_answer = answers.get(f"reading_p{passage_id}_q{qid}", "")
-                correct_answer = str(question.get("correct_answer", ""))
+                question_type = question.get("type", "")
+                items = question.get("items", [])
 
-                # Use flexible comparison that handles variations
-                is_correct = self.compare_answers(user_answer, correct_answer)
-                if is_correct:
-                    correct_count += 1
+                # Handle multi-item matching (e.g., matching headings with paragraphs A-E)
+                if items and len(items) > 0:
+                    # Each item is scored separately
+                    correct_answer_str = str(question.get("correct_answer", ""))
+                    # Parse correct_answer format: "A:i, B:ii, C:iii" or similar
+                    correct_answers_dict = {}
+                    if correct_answer_str:
+                        # Parse format like "A:i, B:ii, C:iii"
+                        pairs = [p.strip() for p in correct_answer_str.split(",")]
+                        for pair in pairs:
+                            if ":" in pair:
+                                item, answer = pair.split(":", 1)
+                                correct_answers_dict[item.strip()] = answer.strip()
 
-                detailed_results.append(
-                    {
-                        "question_id": qid,
-                        "passage_id": passage_id,
-                        "user_answer": user_answer,
-                        "correct_answer": correct_answer,
-                        "is_correct": is_correct,
-                    }
-                )
+                    # Score each item
+                    for item in items:
+                        total_questions += 1
+                        answer_key = f"reading_p{passage_id}_q{qid}_{item}"
+                        user_answer = answers.get(answer_key, "")
+                        correct_answer = correct_answers_dict.get(item, "")
+
+                        is_correct = (
+                            self.compare_answers(user_answer, correct_answer)
+                            if correct_answer
+                            else False
+                        )
+                        if is_correct:
+                            correct_count += 1
+
+                        detailed_results.append(
+                            {
+                                "question_id": qid,
+                                "item": item,
+                                "passage_id": passage_id,
+                                "user_answer": user_answer,
+                                "correct_answer": correct_answer,
+                                "is_correct": is_correct,
+                            }
+                        )
+                else:
+                    # Single answer question
+                    total_questions += 1
+                    user_answer = answers.get(f"reading_p{passage_id}_q{qid}", "")
+                    correct_answer = str(question.get("correct_answer", ""))
+
+                    # Use flexible comparison that handles variations
+                    is_correct = self.compare_answers(user_answer, correct_answer)
+                    if is_correct:
+                        correct_count += 1
+
+                    detailed_results.append(
+                        {
+                            "question_id": qid,
+                            "passage_id": passage_id,
+                            "user_answer": user_answer,
+                            "correct_answer": correct_answer,
+                            "is_correct": is_correct,
+                        }
+                    )
 
         raw_score = correct_count
 
         # Check if user provided any answers (non-empty)
-        has_any_answer = any(
-            answers.get(f"reading_p{passage.get('id')}_q{q.get('id')}", "").strip()
-            for passage in passages
-            for q in passage.get("questions", [])
-        )
+        # Handle both single and multi-item questions
+        has_any_answer = False
+        for passage in passages:
+            for q in passage.get("questions", []):
+                qid = q.get("id")
+                passage_id = passage.get("id")
+                items = q.get("items", [])
+
+                if items and len(items) > 0:
+                    # Check if any item has an answer
+                    for item in items:
+                        answer_key = f"reading_p{passage_id}_q{qid}_{item}"
+                        if answers.get(answer_key, "").strip():
+                            has_any_answer = True
+                            break
+                    if has_any_answer:
+                        break
+                else:
+                    # Single answer question
+                    if answers.get(f"reading_p{passage_id}_q{qid}", "").strip():
+                        has_any_answer = True
+                        break
+            if has_any_answer:
+                break
 
         # CRITICAL FIX: Also check if raw_score matches total_questions (perfect score)
         # If user got perfect score but we know they left blanks, something is wrong
         # Double-check: if raw_score = total_questions, verify all answers are non-empty
         if raw_score == total_questions and total_questions > 0:
             # Verify all answers are actually provided and non-empty
-            all_answers_provided = all(
-                bool(
-                    answers.get(
-                        f"reading_p{passage.get('id')}_q{q.get('id')}", ""
-                    ).strip()
-                )
-                for passage in passages
-                for q in passage.get("questions", [])
-            )
+            # Handle both single and multi-item questions
+            all_answers_provided = True
+            for passage in passages:
+                for q in passage.get("questions", []):
+                    qid = q.get("id")
+                    passage_id = passage.get("id")
+                    items = q.get("items", [])
+
+                    if items and len(items) > 0:
+                        # Check all items have answers
+                        for item in items:
+                            answer_key = f"reading_p{passage_id}_q{qid}_{item}"
+                            if not answers.get(answer_key, "").strip():
+                                all_answers_provided = False
+                                break
+                        if not all_answers_provided:
+                            break
+                    else:
+                        # Single answer question
+                        if not answers.get(f"reading_p{passage_id}_q{qid}", "").strip():
+                            all_answers_provided = False
+                            break
+                if not all_answers_provided:
+                    break
+
             # If not all answers provided but got perfect score, something is wrong
             if not all_answers_provided:
                 print(
@@ -331,14 +410,44 @@ class ScoringService:
                 for passage in passages:
                     for question in passage.get("questions", []):
                         qid = question.get("id")
-                        user_answer = answers.get(
-                            f"reading_p{passage.get('id')}_q{qid}", ""
-                        )
-                        if not user_answer or not user_answer.strip():
-                            continue  # Skip empty answers
-                        correct_answer = str(question.get("correct_answer", ""))
-                        if self.compare_answers(user_answer, correct_answer):
-                            raw_score += 1
+                        passage_id = passage.get("id")
+                        items = question.get("items", [])
+
+                        if items and len(items) > 0:
+                            # Recalculate for multi-item
+                            correct_answer_str = str(question.get("correct_answer", ""))
+                            correct_answers_dict = {}
+                            if correct_answer_str:
+                                pairs = [
+                                    p.strip() for p in correct_answer_str.split(",")
+                                ]
+                                for pair in pairs:
+                                    if ":" in pair:
+                                        item, answer = pair.split(":", 1)
+                                        correct_answers_dict[item.strip()] = (
+                                            answer.strip()
+                                        )
+
+                            for item in items:
+                                answer_key = f"reading_p{passage_id}_q{qid}_{item}"
+                                user_answer = answers.get(answer_key, "")
+                                if not user_answer or not user_answer.strip():
+                                    continue
+                                correct_answer = correct_answers_dict.get(item, "")
+                                if correct_answer and self.compare_answers(
+                                    user_answer, correct_answer
+                                ):
+                                    raw_score += 1
+                        else:
+                            # Single answer question
+                            user_answer = answers.get(
+                                f"reading_p{passage_id}_q{qid}", ""
+                            )
+                            if not user_answer or not user_answer.strip():
+                                continue
+                            correct_answer = str(question.get("correct_answer", ""))
+                            if self.compare_answers(user_answer, correct_answer):
+                                raw_score += 1
 
         # Logic:
         # - No answers → 0.0
