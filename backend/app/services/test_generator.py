@@ -33,6 +33,7 @@ Generate an IELTS Listening & Speaking test for {level.value} level (Band {band}
    - Sec 3: Academic conversation (Multiple choice/Short answer).
    - Sec 4: Academic lecture (Fill-blank/Matching).
    - MANDATORY: Each section must include a realistic 'audio_transcript' (250-300 words) containing all answers.
+   - IMPORTANT: For matching questions, provide 'options' array with choices like ["A. Option 1", "B. Option 2", "C. Option 3"].
 
 2. SPEAKING (10 mins):
    - Part 1: 3-4 Intro questions (hometown, study/work, etc.).
@@ -53,7 +54,7 @@ Generate an IELTS Listening & Speaking test for {level.value} level (Band {band}
             "id": 1,
             "type": "multiple_choice | fill_blank | matching | short_answer",
             "question": "string",
-            "options": ["A", "B", "C"], // Only for MC
+            "options": ["A", "B", "C"], // Required for MC and matching types
             "correct_answer": "string"
           }}
         ]
@@ -83,6 +84,7 @@ Generate an IELTS Reading & Writing test for {level.value} level (Band {band}) i
 1. READING (15 mins, 2 passages, 5 questions/passage):
    - Pass 1: Data/chart-based article (300-400 words). Questions: Multiple choice, True/False/Not Given.
    - Pass 2: Social topic article (300-400 words). Questions: Multiple choice, Matching Headings.
+   - IMPORTANT: For matching_headings questions, provide 'options' array with headings like ["i. Introduction", "ii. Main findings", "iii. Conclusion"].
 
 2. WRITING (15 mins):
    - Task 1 (50-80 words): Describe a chart. MANDATORY: Provide a 'chart_description' containing all raw data (type, title, labels, specific numbers, and key trends) so a student can write without seeing an image.
@@ -101,7 +103,7 @@ Generate an IELTS Reading & Writing test for {level.value} level (Band {band}) i
             "id": 1,
             "type": "multiple_choice | tf_ng | matching_headings",
             "question": "string",
-            "options": ["A", "B", "C"], // Only for MC
+            "options": ["i. Option 1", "ii. Option 2", "iii. Option 3"], // Required for MC and matching_headings types
             "correct_answer": "string"
           }}
         ]
