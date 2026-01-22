@@ -955,22 +955,20 @@ Phân tích (TIẾNG VIỆT):
 
 JSON (TIẾNG VIỆT): {{"ielts_analysis":{{"reading":{{"strengths":[],"weaknesses":[],"question_type_analysis":{{}}}}, "listening":{{"strengths":[],"weaknesses":[],"question_type_analysis":{{}}}}, "writing":{{"task_achievement":{{"score":0,"strengths":[],"weaknesses":[]}}, "coherence_cohesion":{{"score":0,"strengths":[],"weaknesses":[]}}, "lexical_resource":{{"score":0,"strengths":[],"weaknesses":[]}}, "grammatical_range":{{"score":0,"strengths":[],"weaknesses":[]}}, "overall_assessment":""}}, "speaking":{{"fluency_coherence":{{"score":0,"strengths":[],"weaknesses":[]}}, "lexical_resource":{{"score":0,"strengths":[],"weaknesses":[]}}, "grammatical_range":{{"score":0,"strengths":[],"weaknesses":[]}}, "pronunciation":{{"score":0,"strengths":[],"weaknesses":[]}}, "overall_assessment":""}}}}}}"""
 
-        # Part 2: Beyond IELTS Analysis using Key 2 (ultra-compact Vietnamese)
-        beyond_prompt = f"""Beyond IELTS (TIẾNG VIỆT):
+        # Part 2: Beyond IELTS Analysis using Key 2 - Separate analysis for each skill
+        beyond_prompt = f"""Beyond IELTS (TIẾNG VIỆT) - Phân tích riêng từng kỹ năng:
 
 Scores: L={listening_score:.1f} R={reading_score:.1f} W={writing_score:.1f} S={speaking_score:.1f} O={overall_score:.1f}
-Data: W:{writing_summary if writing_summary else 'N/A'} S:{speaking_summary if speaking_summary else 'N/A'}
+Data: L:{listening_summary if listening_summary else 'N/A'} R:{reading_summary if reading_summary else 'N/A'} W:{writing_summary if writing_summary else 'N/A'} S:{speaking_summary if speaking_summary else 'N/A'}
 Samples: W:{writing_samples[:80] if writing_samples else 'N/A'} S:{speaking_samples[:80] if speaking_samples else 'N/A'}
 
-Phân tích (TIẾNG VIỆT):
-- Phản xạ: thấp/trung bình/cao
-- Tiếp thu: khả năng tiếp thu xử lý thông tin
-- Ngôn ngữ mẹ đẻ: dịch, từ vựng (tự nhiên/dịch máy), tác động L/R/S/W
-- Văn phạm: lỗi nghĩa, lỗi văn phạm, cấu trúc, không tự nhiên
-- Phát âm: rõ ràng, mạch lạc, nghe native, nhịp/nhấn, chính xác từ, âm đôi/đuôi
-- Từ vựng: mức (cơ bản/nâng cao), tự nhiên/dịch, đánh giá
+Phân tích riêng từng kỹ năng (TIẾNG VIỆT):
+- LISTENING: phản xạ nghe, tốc độ xử lý, khả năng nắm bắt thông tin, ảnh hưởng ngôn ngữ mẹ đẻ
+- READING: tốc độ đọc, khả năng hiểu, cách tiếp cận văn bản, ảnh hưởng ngôn ngữ mẹ đẻ
+- WRITING: văn phạm, từ vựng, cấu trúc, tự nhiên/dịch máy, lỗi nghĩa
+- SPEAKING: phát âm, nhịp điệu, từ vựng, văn phạm, phản xạ, tự nhiên
 
-JSON (TIẾNG VIỆT): {{"beyond_ielts":{{"reflex_level":"","reception_ability":"","mother_tongue_influence":{{"translation":"","vocabulary_usage":"","listening":"","reading":"","speaking":"","writing":""}}, "grammar":{{"meaning_errors":"","grammar_errors":"","structure_errors":"","unnatural":""}}, "pronunciation":{{"hard_to_understand":"","lack_coherence":"","native_comprehension":"","rhythm_stress":"","word_pronunciation":"","diphthongs_endings":""}}, "vocabulary":{{"level":"","natural_vs_translated":"","assessment":""}}}}}}"""
+JSON (TIẾNG VIỆT): {{"beyond_ielts":{{"listening":{{"reflex_level":"","processing_speed":"","comprehension_ability":"","mother_tongue_impact":"","assessment":""}}, "reading":{{"reading_speed":"","comprehension_ability":"","text_approach":"","mother_tongue_impact":"","assessment":""}}, "writing":{{"grammar_errors":"","vocabulary_level":"","structure_quality":"","natural_vs_translated":"","meaning_errors":"","assessment":""}}, "speaking":{{"pronunciation":"","rhythm_stress":"","vocabulary_usage":"","grammar_accuracy":"","reflex_level":"","naturalness":"","assessment":""}}, "overall":{{"reflex_level":"","reception_ability":"","mother_tongue_influence":"","key_strengths":"","key_weaknesses":""}}}}}}"""
 
         try:
             print("Generating IELTS analysis (using Key 1)...")
