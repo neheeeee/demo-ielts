@@ -84,7 +84,11 @@ Generate an IELTS Reading & Writing test for {level.value} level (Band {band}) i
 1. READING (15 mins, 2 passages, 5 questions/passage):
    - Pass 1: Data/chart-based article (300-400 words). Questions: Multiple choice, True/False/Not Given.
    - Pass 2: Social topic article (300-400 words). Questions: Multiple choice, Matching Headings.
-   - IMPORTANT: For matching_headings questions, provide 'options' array with headings like ["i. Introduction", "ii. Main findings", "iii. Conclusion"].
+   - IMPORTANT: For matching_headings questions:
+     * If matching multiple paragraphs (e.g., "Match headings with paragraphs A-E"), provide:
+       - "items": ["A", "B", "C", "D", "E"] (list of paragraphs/items to match)
+       - "options": ["i. Heading 1", "ii. Heading 2", ...] (list of headings to choose from)
+     * If single matching, provide "options" array with headings like ["i. Introduction", "ii. Main findings", "iii. Conclusion"].
 
 2. WRITING (15 mins):
    - Task 1 (50-80 words): Describe a chart. MANDATORY: Provide a 'chart_description' containing all raw data (type, title, labels, specific numbers, and key trends) so a student can write without seeing an image.
@@ -104,7 +108,8 @@ Generate an IELTS Reading & Writing test for {level.value} level (Band {band}) i
             "type": "multiple_choice | tf_ng | matching_headings",
             "question": "string",
             "options": ["i. Option 1", "ii. Option 2", "iii. Option 3"], // Required for MC and matching_headings types
-            "correct_answer": "string"
+            "items": ["A", "B", "C"], // Optional: for matching_headings with multiple items (paragraphs)
+            "correct_answer": "string" // For matching_headings with items, use format: "A:i, B:ii, C:iii"
           }}
         ]
       }}
